@@ -32,7 +32,7 @@ template <class T> void q_sort ( T *arg, int left, int right )
 
 int main()
 {
-	int i;
+	register int i;
 	
 	cout << "До сортировки: " << endl;
 	

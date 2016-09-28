@@ -26,7 +26,7 @@ hashData hash (const char *password)
 		0x51dec1a3,
 		0x8339badb,
 		0xb44281ca,
-		0x521981da,
+		0x52e981da,
 		0xabaca314,
 		0xe1e5e9ba,
 		0x413ba11e
@@ -57,7 +57,7 @@ public:
 
 int main()
 {
-	const char testStrArr[][120] = {"passw1", "dska", "jnavk",
+	const char testStrArr[][120] = {"passw1", "passw2", "dska", "jnavk",
        				  	"qwerty", "sakd", "biwu",
 				     	"hohmoh", "boqk", "nvqu"
 				     	"chudenbobyknoBeniy", "3Ff2382",
@@ -96,6 +96,12 @@ int main()
 
 	for(it1 = usertable.begin(); it1 != usertable.end(); it1++)
 		cout << "passw:\t" << (*it1).getHashed() << endl;
+
+	string str;
+	while(true) {
+		getline(cin, str);
+		cout << hash(str.c_str()) << endl;
+	}
 
 	return 0;
 }

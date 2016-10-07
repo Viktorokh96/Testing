@@ -75,6 +75,10 @@ class GameArea {
 	Rect _area;
 	Snake _player;
 	EnvironmentList _env;
+pubclic:
+	void InitGame() {} 
+	void StartGame() {} 
+	void EndGame() {} 
 };
 
 int main()

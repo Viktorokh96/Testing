@@ -28,6 +28,12 @@ public:
 	Hash(string passw) : _hashkey( HKEY ), _hashValue( hash(passw) )
 	{
 	}
+	
+	// Перегрузка конструктора Hash
+	Hash(Hash &hashParam) : _hashkey( hashParam._hashkey ), _hashValue( hashParam._hashValue )
+	{
+	}
+
 	hashData hashPassword ( string passw )
 	{
 		return hash(passw);
@@ -46,6 +52,8 @@ class User
 public:
 	// Конструктор пользователя
 	User(){ _password = NULL; _name.clear(); }
+	// Конструктор копий пользователя
+	User(const User &user) { _name = user._name; _password = new Hash(*user._password); }	
 	// Деструктор пользователя
 	~User(){ if(_password) delete _password; }
 	// Установка имени пользователя
@@ -63,9 +71,14 @@ public:
 		else return false;
 	}
 		
+	friend ostream &operator<< (ostream &stream, User user);
 };
 
-
+ostream &operator<< (ostream &stream, User user)
+{
+	stream << user._name;
+	return stream;
+}
 
 int main()
 {
@@ -77,6 +90,8 @@ int main()
 	
 	cin >> password;
 	cout << someone.comparePassw(password) << endl;
+
+	cout << someone << endl;
 
 	return 0;
 }

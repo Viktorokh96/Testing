@@ -230,8 +230,6 @@ public:
 
 
 
-
-
 int main()
 {
 	char *path = (char*) DB_PATH;

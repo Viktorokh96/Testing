@@ -9,9 +9,13 @@ using namespace std;
 #define NAME_SIZE 41
 #define DB_PATH "test.txt"
 
-// ???
-#define RESULT_ERROR 0 
+// Некоторые методы могут возвращать несколько результатов. Для описания этих результатов придуманы следующие макросы:
+#define RESULT_ERR 0
 #define RESULT_OK 1
+// Ошибки
+#define ERR_ALREADY_OPEN 2
+#define ERR_IS_EXIST 3
+#define ERR_NOT_EXIST 4 
 
 typedef unsigned long int hashData;
 class Hash {
@@ -183,40 +187,36 @@ ostream &operator<< (ostream &stream, User user)
 class UserStream
 {
 	User _userinfo;
-public:
-	vector <User> read(char *path)
+public:	
+	// Т.к. этот метод будет идти всегда после openBDFile, то бессмысленно повторно устанавливать режим "для чтения" для потока
+	vector <User> read(fstream &DBFile) 
 	{
 		vector <User> userList;
 		User user;
-
-		userList.clear();
 		
-		ifstream file(path, ios_base::binary);
-		if(!file) { 
-			cerr << "Не удаётся открыть файл!\n";
-			return userList;	// В случае ошибки вернётся пустой список пользователей
-	       	}
-
-		while(!file.eof())
+		userList.clear();		
+		while(!DBFile.eof())
 		{
-			file >> user;
+			DBFile >> user;
 			userList.push_back(user);
 		}
-		file.close();
 		return userList;
 	}
 
-	int write(char *path, vector<User> userList) // вернёт 0 в случае ошибки
+	int write(fstream &DBFile, vector<User> userList)
 	{
-		ofstream file(path, ios_base::binary);	// откроет бинарный файл и допишет в конец
-
-		vector<User>::iterator iter = userList.begin();
-		for(; iter != userList.end(); ++iter)
-			file << *iter;
-
-		file.close();
-
-		return RESULT_OK;
+		//ios_base::openmode(_DBFile.ios_base::out | _DBFile.ios_base::binary); // переключение потока на режим записи
+		if (DBFile.is_open())
+		{
+			vector<User>::iterator iter = userList.begin();
+			for(; iter != userList.end(); ++iter)
+				{DBFile << *iter;}
+			return RESULT_OK;
+		}
+		else
+			cout << "Ошибка write()!" << endl;
+			return RESULT_ERR;
+				
 	}
 };
 
@@ -240,18 +240,56 @@ class CSDB
 	vector<User> _userList; 
 	UserStream _userStream;
 	char *_currentDB;			// Ссылка на текущую, обрабатываемую БД
-
-	void setNewDB(char *path) {
-		_userList = _userStream.read(path); // считать с БД вектор (список) пользователей
-
-		_currentDB = new char[strlen(path)+1];
-		strncpy(_currentDB, path, strlen(path)+1);
+	fstream _DBFile;
+	
+	void setDB(char *path) {
+		int result;
+		//_userStream.createDBFile(path);
+		//_userStream.closeDBFile();
+		switch (result = openDB(path))
+		{
+			case ERR_ALREADY_OPEN:
+			{
+				cerr << "База данных уже открыта!" << endl;
+				break;
+			}
+			case ERR_NOT_EXIST:
+			{
+				cerr << "База данных не найдена!" << endl;
+				createDB(path);
+				break;				
+			}				
+			case RESULT_OK:
+			{
+				cout << "База данных успешно открыта!" << endl;			
+				break;
+			}								
+		}
+	}
+	
+	bool isExist(char *path) // проверка на существование
+	{
+		bool isExist = false;
+		ifstream file(path);
+ 
+		if(file.is_open())
+//		{
+			isExist = true;
+		file.close();
+//		}
+//		else
+//		{
+//			remove(path); // удаляем файл, т.к. он автоматический создался :(( 
+			file.close();
+//		}			
+ 		
+		return isExist;
 	}
 public:
 	CSDB(char *path)
 	{
 		_userList.clear();				
-		setNewDB(path);
+		setDB(path);
 	}
 
 	CSDB()	// Инициализация пустой БД
@@ -259,23 +297,80 @@ public:
 		_userList.clear();				
 		_currentDB = NULL;
 	}
-
+	
+	/*Методы create, open, save, close могут быть вынесены в отдельный класс, 
+	но никак не UserStream, т.к. его прерогатива - только приём и передача информации, 
+	используя указанный поток.*/
+	
+	int createDB(char *path) // создаёт и открывает файл базы данных для записи
+	{
+		if (isExist(path))
+		{
+			return ERR_IS_EXIST;
+		}
+		else
+		{
+			_DBFile.open(path, ios_base::out | ios_base::binary);
+			_userStream.write(_DBFile, _userList);
+			_currentDB = new char[strlen(path)+1];
+			strncpy(_currentDB, path, strlen(path)+1);
+			return RESULT_OK;
+		}	
+	}
+	
+	int openDB(char *path) // открывает файл базы данных для чтения
+	{
+		if (_DBFile.is_open())
+		{
+			return ERR_ALREADY_OPEN; 
+		}
+		else
+		{
+			if(isExist(path))
+			{
+				_DBFile.open(path, ios::in | ios_base::binary);
+				if (_DBFile)
+					_userStream.read(_DBFile); // сделать обработку ошибок для этого метода
+				else
+				{
+					cerr << "Ошибка read()!" << endl;
+					return RESULT_ERR;
+				}
+				_currentDB = new char[strlen(path)+1];
+				strncpy(_currentDB, path, strlen(path)+1);
+				return RESULT_OK;
+			}
+			else
+			{
+				return ERR_NOT_EXIST;
+			}
+		}		
+	}
+	
+	void saveDB()	
+	{
+		if(!_currentDB) 
+			cerr << "Нет ссылки на файл БД!\n"; 
+		else
+		{
+			_DBFile.close(); // без костылей не обошлось :((
+			_DBFile.open(_currentDB, ios_base::out | ios_base::trunc | ios_base::binary);
+			if(!_userStream.write(_DBFile,_userList)) // Сохранение БД
+				cerr << "Не записалось(" << endl;
+		}
+			
+		return;
+	}
+	
+	void closeDB() // закрывает файл базы данных
+	{
+		_DBFile.close();
+	}
+	
 	void loadDB(char *path)
 	{
 		_userList.clear();				
-		setNewDB(path);
-	}
-
-	void saveDB()	
-	{
-		if(!_currentDB) {
-			cerr << "Нет ссылки на файл БД!\n"; 
-			return;
-		}
-
-		if(!_userStream.write(_currentDB, _userList)) // Сохранение БД
-			return;
-
+		setDB(path);
 	}
 
 	void addUser(const char name[NAME_SIZE], string password)
@@ -299,7 +394,6 @@ public:
 
 	~CSDB(){				// Деструктор БД
 		if(_currentDB) {
-			saveDB();
 			delete [] _currentDB;
 		}
 	}
@@ -322,12 +416,13 @@ void Application::init()
 
 void Application::start()
 {
-/*
+
 	userCSDB.addUser("NeX", "123");
 	userCSDB.addUser("Vitya", "3123");
 	userCSDB.addUser("Klimov", "GeohotLohIPidor");
-	userCSDB.addUser("TrueProger", "YaGeohot");
-*/
+//	userCSDB.addUser("TrueProger", "YaGeohot");
+	
+
 	vector<User> users = userCSDB.getUsers();
 
 	for(unsigned int i = 0; i < users.size(); i++)
